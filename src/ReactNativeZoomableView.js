@@ -4,14 +4,17 @@ import {
   View,
   StyleSheet,
   PanResponder,
+  Animated,
 } from 'react-native';
 
 class ReactNativeZoomableView extends Component {
+
   constructor(props) {
     super(props);
 
     this.state = {
       zoomLevel: props.initialZoom,
+      zoomLevelDuc: new Animated.Value(props.initialZoom),
       lastZoomLevel: 1,
       offsetX: 0,
       offsetY: 0,
@@ -21,6 +24,7 @@ class ReactNativeZoomableView extends Component {
     };
 
     this.distance = 150;
+    this._zoomLevel = 0;
 
     this.gestureType = null;
 
@@ -108,7 +112,7 @@ class ReactNativeZoomableView extends Component {
    */
   _handleMoveShouldSetPanResponder = (e, gestureState) => {
     let baseComponentResult = this.props.zoomEnabled
-        && (Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2 || gestureState.numberActiveTouches === 2);
+      && (Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2 || gestureState.numberActiveTouches === 2);
 
     if (this.props.onMoveShouldSetPanResponder) {
       baseComponentResult = this.props.onMoveShouldSetPanResponder(e, gestureState, this._getZoomableViewEventObject(), baseComponentResult);
@@ -162,6 +166,28 @@ class ReactNativeZoomableView extends Component {
     if (this.gestureType === 'pinch') {
       this.pinchZoomPosition = null;
       if (this.props.onZoomEnd) {
+        const { zoom } = this.props
+        if(this._zoomLevel > zoom ) {
+          this.setState({ zoomLevel: zoom, lastZoomLevel: zoom})
+          Animated.timing(
+            this.state.zoomLevelDuc,
+            {
+                toValue: zoom,
+                duration: 200,
+            }
+        ).start();
+        }
+        if(this._zoomLevel < 1) {
+          this.setState({ zoomLevel: 1, lastZoomLevel: 1})
+          Animated.timing(
+            this.state.zoomLevelDuc,
+            {
+                toValue: 1,
+                duration: 200,
+            }
+        ).start();
+        }
+
         this.props.onZoomEnd(e, gestureState, this._getZoomableViewEventObject());
       }
     } else if (this.gestureType === 'shift') {
@@ -184,7 +210,7 @@ class ReactNativeZoomableView extends Component {
    *
    * @returns {number}
    */
-  _getBoundOffsetValue(axis: 'x'|'y', offsetValue: number, containerSize: number, elementSize: number, zoomLevel: number) {
+  _getBoundOffsetValue(axis: 'x' | 'y', offsetValue: number, containerSize: number, elementSize: number, zoomLevel: number) {
     const zoomLevelOffsetValue = (zoomLevel * offsetValue);
 
     const containerToScaledElementRatioSub = 1 - (containerSize / elementSize);
@@ -234,7 +260,7 @@ class ReactNativeZoomableView extends Component {
    * @param distanceToEnd
    * @private
    */
-  _setContextStateDistances(axis: 'x'|'y', distanceToStart: number, distanceToEnd: number) {
+  _setContextStateDistances(axis: 'x' | 'y', distanceToStart: number, distanceToEnd: number) {
     if (axis === 'x') {
       this.contextState.distanceLeft = distanceToStart;
       this.contextState.distanceRight = distanceToEnd;
@@ -261,7 +287,7 @@ class ReactNativeZoomableView extends Component {
   _bindOffsetValuesToBorders(changeObj, bindToBorders = null) {
     // if bindToBorders is disabled -> nothing do here
     if (bindToBorders === false ||
-        (bindToBorders === null && !this.props.bindToBorders)) {
+      (bindToBorders === null && !this.props.bindToBorders)) {
       return changeObj;
     }
 
@@ -332,6 +358,7 @@ class ReactNativeZoomableView extends Component {
     const zoomChangeFromStartOfPinch = (distant / this.distance);
     const pinchToZoomSensitivity = (zoomChangeFromStartOfPinch < 1) ? pinchToZoomOutSensitivity : pinchToZoomInSensitivity;
     let zoomLevel = ((zoomChangeFromStartOfPinch * this.state.lastZoomLevel) + this.state.lastZoomLevel * pinchToZoomSensitivity) / (pinchToZoomSensitivity + 1);
+    this._zoomLevel = zoomLevel;
 
     // make sure max and min zoom levels are respected
     if (maxZoom !== null && zoomLevel > maxZoom) {
@@ -344,8 +371,8 @@ class ReactNativeZoomableView extends Component {
 
     // only use the first position we get by pinching, or the screen will "wobble" during zoom action
     if (this.pinchZoomPosition === null) {
-      const pinchToZoomCenterX = Math.min(e.nativeEvent.touches[ 0 ].pageX, e.nativeEvent.touches[ 1 ].pageX) + ( dx / 2 );
-      const pinchToZoomCenterY = Math.min(e.nativeEvent.touches[ 0 ].pageY, e.nativeEvent.touches[ 1 ].pageY) + ( dy / 2 );
+      const pinchToZoomCenterX = Math.min(e.nativeEvent.touches[0].pageX, e.nativeEvent.touches[1].pageX) + (dx / 2);
+      const pinchToZoomCenterY = Math.min(e.nativeEvent.touches[0].pageY, e.nativeEvent.touches[1].pageY) + (dy / 2);
 
       this.pinchZoomPosition = this._getOffsetAdjustedPosition(pinchToZoomCenterX, pinchToZoomCenterY);
     }
@@ -357,6 +384,9 @@ class ReactNativeZoomableView extends Component {
     const ratioOffsetY = this.state.lastY + zoomStage * this.pinchZoomPosition.y;
 
     // define the changeObject and make sure the offset values are bound to view
+    const zoomLevelDuc = new Animated.Value(zoomLevel);   //duc skt
+    this.setState({ zoomLevelDuc })
+    
     const changeStateObj = this._bindOffsetValuesToBorders({
       zoomLevel,
       lastMovePinch: true,
@@ -453,10 +483,10 @@ class ReactNativeZoomableView extends Component {
     const nextZoomStep = this._getNextZoomStep();
 
     this._zoomToLocation(
-        e.nativeEvent.locationX,
-        e.nativeEvent.locationY,
-        nextZoomStep,
-        true
+      e.nativeEvent.locationX,
+      e.nativeEvent.locationY,
+      nextZoomStep,
+      true
     );
 
     if (this.props.onDoubleTapAfter) {
@@ -486,7 +516,6 @@ class ReactNativeZoomableView extends Component {
     if (maxZoom !== null && nextZoomStep > maxZoom) {
       return maxZoom;
     }
-
     return nextZoomStep;
   }
 
@@ -528,6 +557,8 @@ class ReactNativeZoomableView extends Component {
     const offsetAdjustedPosition = this._getOffsetAdjustedPosition(x, y);
 
     // define the changeObject and make sure the offset values are bound to view
+    const zoomLevelDuc = new Animated.Value(newZoomLevel);
+    this.setState({ zoomLevelDuc })
     const changeStateObj = this._bindOffsetValuesToBorders({
       zoomLevel: newZoomLevel,
       offsetX: offsetAdjustedPosition.x,
@@ -546,25 +577,24 @@ class ReactNativeZoomableView extends Component {
 
   render() {
     return (
-        <View
-    style={styles.container}
-    {...this.gestureHandlers.panHandlers}
-    onLayout={this._getBoxDimensions}
+      <Animated.View
+        style={styles.container}
+        {...this.gestureHandlers.panHandlers}
+        onLayout={this._getBoxDimensions} >
+        <Animated.View
+          style={[styles.wrapper, this.props.style, {
+            transform: [
+              { scale: this.state.zoomLevelDuc },
+              { scale: this.state.zoomLevelDuc  },
+              { translateX: this.state.offsetX },
+              { translateY: this.state.offsetY },
+            ],
+          }]}
         >
-        <View
-    style={[styles.wrapper, this.props.style, {
-      transform: [
-        { scale: this.state.zoomLevel },
-        { scale: this.state.zoomLevel },
-        { translateX: this.state.offsetX },
-        { translateY: this.state.offsetY },
-      ],
-    }]}
-  >
-    {this.props.children}
-  </View>
-    </View>
-  );
+          {this.props.children}
+        </Animated.View>
+      </Animated.View>
+    );
   }
 }
 
@@ -573,6 +603,7 @@ ReactNativeZoomableView.propTypes = {
   zoomEnabled: PropTypes.bool,
   initialZoom: PropTypes.number,
   maxZoom: PropTypes.number,
+  zoom: PropTypes.number,
   minZoom: PropTypes.number,
   pinchToZoomInSensitivity: PropTypes.number, // the level of resistance (sensitivity) to zoom in (0 - 10) - higher is less sensitive - default: 3
   pinchToZoomOutSensitivity: PropTypes.number, // the level of resistance (sensitivity) to zoom out (0 - 10) - higher is less sensitive default: 1
@@ -600,6 +631,7 @@ ReactNativeZoomableView.defaultProps = {
   zoomEnabled: true,
   initialZoom: 1,
   maxZoom: 1.5,
+  zoom: 1.5,
   minZoom: 0.5,
   pinchToZoomInSensitivity: 3,
   pinchToZoomOutSensitivity: 1,
